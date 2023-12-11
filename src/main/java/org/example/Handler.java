@@ -2,13 +2,12 @@ package org.example;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.textract.TextractClient;
 import software.amazon.awssdk.services.textract.model.S3Object;
-import software.amazon.awssdk.services.textract.model.DocumentLocation;
+import software.amazon.awssdk.services.textract.model.*;
 
 public class Handler {
     private static final Logger LOGGER = LoggerFactory.getLogger(Handler.class);
@@ -55,15 +54,40 @@ public class Handler {
     private boolean analyzeDocument(TextractClient textractClient, String bucketName, String keyName) {
         LOGGER.info("Analyzing document...");
         try {
-            S3Object s3Object = S3Object.builder().bucket(bucketName).name(keyName).build();
-            Document document = Document.builder().s3Object(s3Object).build();
+            S3Object s3ObjectTextract = S3Object.builder().bucket(bucketName).name(keyName).build();
+            DocumentLocation documentLocation = DocumentLocation.builder()
+                    .s3Object(s3ObjectTextract)
+                    .build();
 
-            AnalyzeDocumentRequest request = AnalyzeDocumentRequest.builder().document(document).build();
-            AnalyzeDocumentResponse response = textractClient.analyzeDocument(request);
+            StartDocumentTextDetectionResponse startResponse = textractClient.startDocumentTextDetection(
+                    StartDocumentTextDetectionRequest.builder().documentLocation(documentLocation).build()
+            );
+
+            String jobId = startResponse.jobId();
+
+            while (true) {
+                GetDocumentTextDetectionResponse response = textractClient.getDocumentTextDetection(
+                        GetDocumentTextDetectionRequest.builder().jobId(jobId).build()
+                );
+
+                JobStatus jobStatus = response.jobStatus();
+                LOGGER.info("Job Status: {}", jobStatus);
+
+                if (jobStatus == JobStatus.SUCCEEDED || jobStatus == JobStatus.FAILED) {
+                    break;
+                } else {
+                    sleep();
+                }
+            }
 
             // Process the results as needed
             LOGGER.info("Document analysis complete. Results:");
-            LOGGER.info(response.blocks().toString());
+            LOGGER.info(
+                    "Detected blocks: {}",
+                    textractClient.getDocumentTextDetection(
+                            GetDocumentTextDetectionRequest.builder().jobId(jobId).build()
+                    ).blocks().toString()
+            );
 
             return true;
         } catch (TextractException e) {
@@ -73,6 +97,14 @@ public class Handler {
         }
 
         return false;
+    }
+
+    private static void sleep() {
+        try {
+            Thread.sleep(5000);
+        } catch (InterruptedException e) {
+            // Ignore
+        }
     }
 
     private void cleanUp(S3Client s3Client, String bucketName, String keyName) {
