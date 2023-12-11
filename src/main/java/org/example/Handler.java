@@ -2,41 +2,58 @@ package org.example;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.nio.file.Paths;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.textract.TextractClient;
 import software.amazon.awssdk.services.textract.model.S3Object;
 import software.amazon.awssdk.services.textract.model.*;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+
+
+
 
 public class Handler {
     private static final Logger LOGGER = LoggerFactory.getLogger(Handler.class);
 
+    private TextractClient textractClient;
+
     public void sendRequest() {
         String bucket = "bucket" + System.currentTimeMillis();
         String key = "key";
-
-        try (S3Client s3Client = DependencyFactory.s3Client()) {
+    
+        // Replace the following line with your actual AWS access key and secret key
+        AwsBasicCredentials credentials = AwsBasicCredentials.create("your-access-key", "your-secret-key");
+    
+        try (S3Client s3Client = S3Client.builder()
+                .region(Region.US_EAST_1) // replace with your desired region
+                .credentialsProvider(StaticCredentialsProvider.create(credentials))
+                .build()) {
+    
             createBucket(s3Client, bucket);
-            try (TextractClient textractClient = TextractClient.create()) {
-                LOGGER.info("Uploading object...");
-                s3Client.putObject(
-                        PutObjectRequest.builder().bucket(bucket).key(key).build(),
-                        RequestBody.fromString("Testing with the {sdk-java}")
-                );
-
-                LOGGER.info("Upload complete");
-
-                boolean isAnalyzeSuccess = analyzeDocument(textractClient, bucket, key);
-                LOGGER.info("Is Analyze Success: {}", isAnalyzeSuccess);
-
-                LOGGER.info("Closing the connection to S3 and Textract");
-            } finally {
-                cleanUp(s3Client, bucket, key);
-            }
+    
+            System.out.println("Uploading object...");
+            s3Client.putObject(
+                    PutObjectRequest.builder().bucket(bucket).key(key).build(),
+                    RequestBody.fromString("Testing with the {sdk-java}")
+            );
+    
+            System.out.println("Upload complete");
+    
+            boolean isAnalyzeSuccess = analyzeDocument(textractClient, bucket, key);
+            System.out.println("Is Analyze Success: " + isAnalyzeSuccess);
+    
+            System.out.println("Cleaning up...");
+            s3Client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key).build());
+            s3Client.deleteBucket(DeleteBucketRequest.builder().bucket(bucket).build());
+            System.out.println("Cleanup complete");
+    
         } finally {
-            LOGGER.info("Connections closed");
-            LOGGER.info("Exiting...");
+            System.out.println("Connections closed");
+            System.out.println("Exiting...");
         }
     }
 
