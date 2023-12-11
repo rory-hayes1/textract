@@ -2,12 +2,13 @@ package org.example;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.textract.TextractClient;
 import software.amazon.awssdk.services.textract.model.S3Object;
-import software.amazon.awssdk.services.textract.model.*;
+import software.amazon.awssdk.services.textract.model.DocumentLocation;
 
 public class Handler {
     private static final Logger LOGGER = LoggerFactory.getLogger(Handler.class);
@@ -43,7 +44,7 @@ public class Handler {
     private void createBucket(S3Client s3Client, String bucketName) {
         try {
             s3Client.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
-            LOGGER.info("Creating bucket: " + bucketName);
+            LOGGER.info("Creating bucket: {}", bucketName);
             s3Client.waiter().waitUntilBucketExists(HeadBucketRequest.builder().bucket(bucketName).build());
             LOGGER.info("{} is ready", bucketName);
         } catch (S3Exception e) {
