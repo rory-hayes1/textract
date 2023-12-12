@@ -16,7 +16,7 @@ public class DependencyFactory {
      */
     public static S3Client s3Client() {
         return S3Client.builder()
-                       .httpClientBuilder(ApacheHttpClient.builder())
-                       .build();
+                .httpClientBuilder(ApacheHttpClient.builder())
+                .build();
     }
 }

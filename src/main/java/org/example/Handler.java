@@ -9,20 +9,44 @@ import software.amazon.awssdk.services.textract.TextractClient;
 import software.amazon.awssdk.services.textract.model.S3Object;
 import software.amazon.awssdk.services.textract.model.*;
 
+import java.util.List;
+import java.util.UUID;
+
 public class Handler {
     private static final Logger LOGGER = LoggerFactory.getLogger(Handler.class);
+    private final String bucket;
+
+    public Handler() {
+        String targetBucket = "bucket" + System.currentTimeMillis();
+        try (S3Client s3Client = DependencyFactory.s3Client()) {
+            createBucket(s3Client, targetBucket);
+            bucket = targetBucket;
+        }
+    }
 
     public void sendRequest() {
-        String bucket = "bucket" + System.currentTimeMillis();
-        String key = "key";
+        sendRequest("Testing with the {sdk-java}".getBytes());
+    }
+
+    public void sendRequest(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            LOGGER.debug("requested content is null or empty");
+            return;
+        }
+
+        if (bucket.isEmpty()) {
+            LOGGER.debug("s3 bucket is not initialized");
+            return;
+        }
+
+        String key = UUID.randomUUID().toString();
 
         try (S3Client s3Client = DependencyFactory.s3Client()) {
-            createBucket(s3Client, bucket);
             try (TextractClient textractClient = TextractClient.create()) {
-                LOGGER.info("Uploading object...");
+                LOGGER.info("Uploading object to {}:...", key);
                 s3Client.putObject(
                         PutObjectRequest.builder().bucket(bucket).key(key).build(),
-                        RequestBody.fromString("Testing with the {sdk-java}")
+                        RequestBody.fromBytes(bytes)
                 );
 
                 LOGGER.info("Upload complete");
@@ -65,8 +89,9 @@ public class Handler {
 
             String jobId = startResponse.jobId();
 
+            GetDocumentTextDetectionResponse response;
             while (true) {
-                GetDocumentTextDetectionResponse response = textractClient.getDocumentTextDetection(
+                response = textractClient.getDocumentTextDetection(
                         GetDocumentTextDetectionRequest.builder().jobId(jobId).build()
                 );
 
@@ -82,12 +107,12 @@ public class Handler {
 
             // Process the results as needed
             LOGGER.info("Document analysis complete. Results:");
-            LOGGER.info(
-                    "Detected blocks: {}",
-                    textractClient.getDocumentTextDetection(
-                            GetDocumentTextDetectionRequest.builder().jobId(jobId).build()
-                    ).blocks().toString()
-            );
+            if (response.hasBlocks()) {
+                List<Block> blocks = response.blocks();
+                LOGGER.info("Detected blocks: {}", blocks.toString());
+            } else {
+                LOGGER.info("No blocks detected");
+            }
 
             return true;
         } catch (TextractException e) {
