@@ -2,23 +2,40 @@ package org.example;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.nio.file.Paths;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.textract.TextractClient;
 import software.amazon.awssdk.services.textract.model.S3Object;
 import software.amazon.awssdk.services.textract.model.*;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+
+
+
 
 import java.util.List;
 import java.util.UUID;
 
 public class Handler {
     private static final Logger LOGGER = LoggerFactory.getLogger(Handler.class);
+    private final AwsBasicCredentials credentials;
     private final String bucket;
 
     public Handler() {
+        credentials = AwsBasicCredentials.create("your-access-key", "your-secret-key");
+
+                
         String targetBucket = "bucket" + System.currentTimeMillis();
-        try (S3Client s3Client = DependencyFactory.s3Client()) {
+        try (        S3Client s3Client = S3Client.builder()
+                .region(Region.US_EAST_1) // replace with your desired region
+                .credentialsProvider(StaticCredentialsProvider.create(credentials))
+                .build()) {
             createBucket(s3Client, targetBucket);
             bucket = targetBucket;
         }
@@ -38,15 +55,19 @@ public class Handler {
             LOGGER.debug("s3 bucket is not initialized");
             return;
         }
+        String bucket = "bucket" + System.currentTimeMillis();
+        String key = "key";
 
-        String key = UUID.randomUUID().toString();
-
-        try (S3Client s3Client = DependencyFactory.s3Client()) {
+        try (S3Client s3Client = S3Client.builder()
+                .region(Region.US_EAST_1) // replace with your desired region
+                .credentialsProvider(StaticCredentialsProvider.create(credentials))
+                .build()) {
+            createBucket(s3Client, bucket);
             try (TextractClient textractClient = TextractClient.create()) {
-                LOGGER.info("Uploading object to {}:...", key);
+                LOGGER.info("Uploading object...");
                 s3Client.putObject(
                         PutObjectRequest.builder().bucket(bucket).key(key).build(),
-                        RequestBody.fromBytes(bytes)
+                        RequestBody.fromString("Testing with the {sdk-java}")
                 );
 
                 LOGGER.info("Upload complete");
